@@ -6,40 +6,26 @@ and layer normalization components.
 import torch
 import torch.nn as nn
 
+class GELU(nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    def forward(self, x):
+        return 0.5 * x * (1 + torch.tanh(
+            torch.sqrt(torch.tensor(2.0 / torch.pi)) * 
+            (x + 0.044715 * torch.pow(x, 3))
+        ))
+
 class FeedForward(nn.Module):
-    """
-    Feed-forward network used in transformer blocks.
-    
-    This implementation follows the original transformer architecture:
-    - Two linear layers with GELU activation in between
-    - Hidden dimension is 4x the input dimension
-    - Includes dropout for regularization
-    
-    Args:
-        config (dict): Configuration dictionary containing:
-            - emb_dim (int): Input and output dimension
-            - drop_rate (float): Dropout probability
-    """
-    
-    def __init__(self, config):
+    def __init__(self, cfg):
         super().__init__()
         self.layers = nn.Sequential(
-            nn.Linear(config["emb_dim"], 4 * config["emb_dim"]),  # Expansion
-            nn.GELU(),  # Activation
-            nn.Dropout(config["drop_rate"]),  # Added dropout for regularization
-            nn.Linear(4 * config["emb_dim"], config["emb_dim"])  # Compression
+            nn.Linear(cfg["emb_dim"], 4 * cfg["emb_dim"]),
+            GELU(),
+            nn.Linear(4 * cfg["emb_dim"], cfg["emb_dim"]),
         )
-        
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
-        """
-        Apply the feed-forward network to the input.
-        
-        Args:
-            x (torch.Tensor): Input tensor of shape (batch_size, seq_len, emb_dim)
-            
-        Returns:
-            torch.Tensor: Output tensor of shape (batch_size, seq_len, emb_dim)
-        """
+
+    def forward(self, x):
         return self.layers(x)
 
 class LayerNorm(nn.Module):
@@ -59,16 +45,8 @@ class LayerNorm(nn.Module):
         self.scale = nn.Parameter(torch.ones(emb_dim))  # Made into proper Parameter
         self.shift = nn.Parameter(torch.zeros(emb_dim))  # Made into proper Parameter
         
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
-        """
-        Apply layer normalization to the input.
-        
-        Args:
-            x (torch.Tensor): Input tensor of shape (..., emb_dim)
-            
-        Returns:
-            torch.Tensor: Normalized tensor of the same shape
-        """
+    def forward(self, x):
         mean = x.mean(dim=-1, keepdim=True)
-        std = x.std(dim=-1, keepdim=True, unbiased=False)  # unbiased=False uses N instead of N-1
-        return self.scale * (x - mean) / (std + self.eps) + self.shift 
+        var = x.var(dim=-1, keepdim=True, unbiased=False)
+        norm_x = (x - mean) / torch.sqrt(var + self.eps)
+        return self.scale * norm_x + self.shift
