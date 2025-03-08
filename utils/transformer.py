@@ -63,3 +63,29 @@ class GPTModel(nn.Module):
         return logits
 
 
+def generate_text(model,input,max_new_tokens,context_size):
+    """
+    Generate text using the model
+    Args:
+        model: The GPT model
+        input: input of shape (batch_size, n_tokens)
+        max_new_tokens: The maximum number of new tokens to generate
+        context_size: The size of the context window
+    Returns:
+        The generated text
+    """
+
+    for _ in range(max_new_tokens):
+        # if input is larger than context size, truncate the input
+        input_chunk = input[:, -context_size:]
+        with torch.no_grad():
+            logits = model(input_chunk)
+        # we need to get only the last token's logits to get the next token
+        logits = logits[:, -1, :]
+        # apply softmax to get the probabilities
+        probs = torch.softmax(logits, dim=-1)
+        # sample the next token
+        next_token = torch.argmax(probs, dim=-1, keepdim=True)
+        # append the next token to the input
+        input = torch.cat([input, next_token], dim=1)
+    return input
